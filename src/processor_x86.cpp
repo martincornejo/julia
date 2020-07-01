@@ -152,7 +152,7 @@ constexpr auto generic = get_feature_masks(cx16);
 constexpr auto bonnell = get_feature_masks(sse3, ssse3, cx16, movbe, sahf);
 constexpr auto silvermont = bonnell | get_feature_masks(sse41, sse42, popcnt,
                                                         pclmul, aes, prfchw);
-constexpr auto goldmont = silvermont | get_feature_masks(mpx, sha, rdrnd, rdseed, xsave,
+constexpr auto goldmont = silvermont | get_feature_masks(sha, rdrnd, rdseed, xsave,
                                                          xsaveopt, xsavec, xsaves, clflushopt);
 constexpr auto yonah = get_feature_masks(sse3);
 constexpr auto prescott = yonah;
@@ -165,7 +165,7 @@ constexpr auto sandybridge = westmere | get_feature_masks(avx, xsave, xsaveopt);
 constexpr auto ivybridge = sandybridge | get_feature_masks(rdrnd, f16c, fsgsbase);
 constexpr auto haswell = ivybridge | get_feature_masks(avx2, bmi, bmi2, fma, lzcnt, movbe);
 constexpr auto broadwell = haswell | get_feature_masks(adx, rdseed, prfchw);
-constexpr auto skylake = broadwell | get_feature_masks(mpx, rtm, xsavec, xsaves,
+constexpr auto skylake = broadwell | get_feature_masks(rtm, xsavec, xsaves,
                                                        clflushopt); // ignore sgx; hle
 constexpr auto knl = broadwell | get_feature_masks(avx512f, avx512er, avx512cd, avx512pf,
                                                    prefetchwt1);
