@@ -92,7 +92,7 @@ enum class CPU : uint32_t {
     amd_znver1,
 };
 
-static constexpr size_t feature_sz = 9;
+static constexpr size_t feature_sz = 11;
 static constexpr FeatureName feature_names[] = {
 #define JL_FEATURE_DEF(name, bit, llvmver) {#name, bit, llvmver},
 #define JL_FEATURE_DEF_NAME(name, bit, llvmver, str) {str, bit, llvmver},
@@ -130,6 +130,10 @@ static constexpr FeatureDep deps[] = {
     {avx, sse42},
     {f16c, avx},
     {avx2, avx},
+    {vaes, avx},
+    {vaes, aes},
+    {vpclmulqdq, avx},
+    {vpclmulqdq, pclmul},
     {avx512f, avx2},
     {avx512dq, avx512f},
     {avx512ifma, avx512f},
@@ -137,13 +141,18 @@ static constexpr FeatureDep deps[] = {
     {avx512er, avx512f},
     {avx512cd, avx512f},
     {avx512bw, avx512f},
+    {avx512bf16, avx512bw},
+    {avx512bitalg, avx512bw},
     {avx512vl, avx512f},
     {avx512vbmi, avx512bw},
+    {avx512vbmi2, avx512bw},
+    {avx512vnni, avx512f},
+    {avx512vp2intersect, avx512f},
     {avx512vpopcntdq, avx512f},
     {sse4a, sse3},
     {xop, fma4},
     {fma4, avx},
-    {fma4, sse4a}
+    {fma4, sse4a},
 };
 
 // We require cx16 on 64bit by default. This can be overwritten with `-cx16`
@@ -467,7 +476,8 @@ static inline void features_disable_avx512(T &features)
 {
     using namespace Feature;
     unset_bits(features, avx512f, avx512dq, avx512ifma, avx512pf, avx512er, avx512cd,
-               avx512bw, avx512vl, avx512vbmi);
+               avx512bw, avx512vl, avx512vbmi, avx512vpopcntdq, avx512vbmi2, avx512vnni,
+               avx512bitalg, avx512vp2intersect, avx512bf16);
 }
 
 template<typename T>
@@ -475,7 +485,7 @@ static inline void features_disable_avx(T &features)
 {
     using namespace Feature;
     unset_bits(features, avx, Feature::fma, f16c, xsave, avx2, xop, fma4,
-               xsaveopt, xsavec, xsaves);
+               xsaveopt, xsavec, xsaves, vaes, vpclmulqdq);
 }
 
 static NOINLINE std::pair<uint32_t,FeatureList<feature_sz>> _get_host_cpu(void)
@@ -531,6 +541,16 @@ static NOINLINE std::pair<uint32_t,FeatureList<feature_sz>> _get_host_cpu(void)
         int32_t infoex8[4];
         jl_cpuidex(infoex8, 0x80000008, 0);
         features[8] = infoex8[1];
+    }
+    if (maxleaf >= 7) {
+        int32_t info7[4];
+        jl_cpuidex(info7, 7, 1);
+        features[9] = info7[0];
+    }
+    if (maxleaf >= 0x14) {
+        int32_t info14[4];
+        jl_cpuidex(info14, 0x14, 0);
+        features[10] = info14[1];
     }
 
     // Fix up AVX bits to account for OS support and match LLVM model
@@ -785,12 +805,16 @@ static void ensure_jit_target(bool imaging)
         static constexpr uint32_t clone_simd[] = {Feature::sse3, Feature::ssse3,
                                                   Feature::sse41, Feature::sse42,
                                                   Feature::avx, Feature::avx2,
+                                                  Feature::vaes, Feature::vpclmulqdq,
                                                   Feature::sse4a, Feature::avx512f,
                                                   Feature::avx512dq, Feature::avx512ifma,
                                                   Feature::avx512pf, Feature::avx512er,
                                                   Feature::avx512cd, Feature::avx512bw,
                                                   Feature::avx512vl, Feature::avx512vbmi,
-                                                  Feature::avx512vpopcntdq};
+                                                  Feature::avx512vpopcntdq,
+                                                  Feature::avx512vbmi2, Feature::avx512vnni,
+                                                  Feature::avx512bitalg, Feature::avx512bf16,
+                                                  Feature::avx512vp2intersect};
         for (auto fe: clone_math) {
             if (!test_nbit(features0, fe) && test_nbit(t.en.features, fe)) {
                 t.en.flags |= JL_TARGET_CLONE_MATH;
@@ -844,6 +868,9 @@ get_llvm_target_noext(const TargetData<feature_sz> &data)
     // returns a value that may not have 64bit support.
     // This can happen with vitalization.
     features.push_back("+64bit");
+#endif
+#if JL_LLVM_VERSION >= 90000
+    features.push_back("+cx8");
 #endif
     return std::make_pair(std::move(name), std::move(features));
 }
